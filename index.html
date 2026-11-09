@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Gazette</title>
+  <script>
+    // ==========================================================
+    //  SEULE LIGNE À MODIFIER CHAQUE SEMAINE :
+    const LIEN_GAZETTE = "https://exemple.com/gazette-de-la-semaine";
+    // ==========================================================
+    window.location.replace(LIEN_GAZETTE);
+  </script>
+  <style>
+    body { font-family: system-ui, sans-serif; display: grid; place-items: center;
+           min-height: 100vh; margin: 0; padding: 16px; text-align: center; }
+    a { font-size: 1.1rem; }
+  </style>
+</head>
+<body>
+  <p>Ouverture de la gazette…<br><br>
+     <a id="lien" href="#">Cliquez ici si rien ne se passe</a></p>
+  <script>document.getElementById("lien").href = LIEN_GAZETTE;</script>
+</body>
+</html>
