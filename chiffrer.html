@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Chiffrer la gazette</title>
+<style>
+  :root { --vert:#0b5d3b; --fond:#f4f6f4; --texte:#1c1f1d; --doux:#5c665f; --carte:#fff; --bord:#d9dfdb; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--fond); color:var(--texte); }
+  main { max-width:520px; margin:40px auto; padding:0 16px; }
+  .carte { background:var(--carte); border:1px solid var(--bord); border-radius:14px; padding:28px; }
+  h1 { margin:0 0 6px; font-size:1.4rem; color:var(--vert); }
+  p.intro { margin:0 0 22px; color:var(--doux); line-height:1.45; font-size:.95rem; }
+  label { display:block; font-weight:600; margin:16px 0 6px; font-size:.95rem; }
+  input[type=file], input[type=password] { width:100%; padding:11px 12px; border:1px solid var(--bord); border-radius:9px; font-size:1rem; background:#fff; }
+  button { margin-top:22px; width:100%; padding:13px; border:0; border-radius:9px; background:var(--vert); color:#fff; font-size:1rem; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.55; cursor:wait; }
+  #etat { margin-top:18px; font-size:.95rem; line-height:1.45; min-height:1.4em; }
+  .ok { color:var(--vert); } .err { color:#b3261e; }
+  a.dl { display:inline-block; margin-top:10px; padding:10px 14px; border-radius:9px; border:2px solid var(--vert); color:var(--vert); font-weight:600; text-decoration:none; }
+  .note { margin-top:22px; font-size:.85rem; color:var(--doux); line-height:1.45; }
+</style>
+</head>
+<body>
+<main>
+  <div class="carte">
+    <h1>Chiffrer la gazette</h1>
+    <p class="intro">Le chiffrement se fait entièrement dans ce navigateur : le PDF n'est envoyé nulle part. Vous obtenez un fichier <b>gazette.enc</b> à déposer sur GitHub.</p>
+
+    <label for="pdf">1. PDF de la gazette</label>
+    <input id="pdf" type="file" accept="application/pdf,.pdf">
+
+    <label for="mdp">2. Mot de passe des équipes</label>
+    <input id="mdp" type="password" autocomplete="new-password">
+
+    <label for="mdp2">3. Confirmer le mot de passe</label>
+    <input id="mdp2" type="password" autocomplete="new-password">
+
+    <button id="go">Chiffrer</button>
+    <div id="etat"></div>
+
+    <p class="note">Utilisez toujours le même mot de passe d'une semaine à l'autre, sinon les équipes devront en apprendre un nouveau.</p>
+  </div>
+</main>
+<script>
+const MAGIC = new TextEncoder().encode("GZT1");
+const ITER = 600000;
+
+async function chiffrer(donnees, mdp) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(mdp), "PBKDF2", false, ["deriveKey"]);
+  const cle = await crypto.subtle.deriveKey({ name:"PBKDF2", salt, iterations:ITER, hash:"SHA-256" },
+    base, { name:"AES-GCM", length:256 }, false, ["encrypt"]);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name:"AES-GCM", iv }, cle, donnees));
+  const out = new Uint8Array(4 + 4 + 16 + 12 + ct.length);
+  out.set(MAGIC, 0);
+  new DataView(out.buffer).setUint32(4, ITER);
+  out.set(salt, 8); out.set(iv, 24); out.set(ct, 36);
+  return out;
+}
+
+const etat = document.getElementById("etat");
+const msg = (t, cls) => { etat.className = cls || ""; etat.textContent = t; };
+
+document.getElementById("go").addEventListener("click", async () => {
+  const f = document.getElementById("pdf").files[0];
+  const m1 = document.getElementById("mdp").value;
+  const m2 = document.getElementById("mdp2").value;
+  if (!f) return msg("Choisissez d'abord le PDF de la gazette.", "err");
+  if (m1.length < 8) return msg("Le mot de passe doit faire au moins 8 caractères.", "err");
+  if (m1 !== m2) return msg("Les deux mots de passe ne sont pas identiques.", "err");
+  if (!window.crypto || !crypto.subtle) return msg("Ce navigateur ne permet pas le chiffrement. Ouvrez cette page avec Chrome ou Edge, via son adresse https.", "err");
+
+  const bouton = document.getElementById("go");
+  bouton.disabled = true; msg("Chiffrement en cours…");
+  try {
+    const donnees = new Uint8Array(await f.arrayBuffer());
+    const head = new TextDecoder().decode(donnees.slice(0, 5));
+    if (head !== "%PDF-") throw new Error("Ce fichier ne semble pas être un PDF.");
+    const sortie = await chiffrer(donnees, m1);
+    const url = URL.createObjectURL(new Blob([sortie], { type:"application/octet-stream" }));
+    etat.className = "ok";
+    etat.innerHTML = "C'est prêt (" + (sortie.length/1048576).toFixed(1) + " Mo). Téléchargez le fichier, puis déposez-le sur GitHub sous le nom <b>gazette.enc</b>.<br>";
+    const a = document.createElement("a");
+    a.href = url; a.download = "gazette.enc"; a.className = "dl"; a.textContent = "Télécharger gazette.enc";
+    etat.appendChild(a);
+    a.click();
+  } catch (e) {
+    msg(e.message || "Le chiffrement a échoué.", "err");
+  } finally {
+    bouton.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
